@@ -1,0 +1,21 @@
+version: '3'
+
+services:
+  scalaris-abci1:
+    container_name: scalaris-abci1
+    image: "scalaris/abci"
+    ports:
+      - "26657:26657"
+    environment:
+      - ID=0
+      - LOG=${LOG:-scalaris.log}
+      - CMTHOME=/scalaris
+      - CHAIN_ID=evmos_9000-1
+      - MONIKER=dockernode
+    entrypoint: "/usr/bin/start.sh"
+    command: ["node", "--scalaris_addr", "host.docker.internal:8081"]
+    volumes:
+      - /tmp/abci/node1:/scalaris
+      - ./build/scalaris:/usr/local/bin/scalaris:Z
+      - ./start.sh:/usr/bin/start.sh
+
