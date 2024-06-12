@@ -9,12 +9,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cometbft/cometbft/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	cmtnet "github.com/cometbft/cometbft/libs/net"
 	"github.com/cometbft/cometbft/libs/service"
+
+	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	consensus "github.com/cometbft/cometbft/scalaris/consensus/proto"
 )
 
@@ -255,6 +258,35 @@ func (cli *grpcClient) GetValidatorState(ctx context.Context) (*consensus.Valida
 	empty := &emptypb.Empty{}
 	res, err := cli.client.GetValidatorInfo(ctx, empty)
 	return res, err
+}
+
+func (cli *grpcClient) SignProposal(chainID string, proposal *cmtproto.Proposal) error {
+	validators, err := MockGenesisValidators()
+
+	// TODO-SCALARIS: This is a hack to get the proposer. We should have a better way to get the correct proposer.
+	proposer := validators[0]
+
+	if err != nil {
+		return err
+	}
+
+	err = proposer.SignProposal(chainID, proposal)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// TODO-SCALARIS: This is a hack to get the validators. We should have a better way to get the validators.
+func (cli *grpcClient) GetPrivValidators() ([]types.PrivValidator, error) {
+	validators, err := MockGenesisValidators()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return validators, nil
 }
 
 func (cli *grpcClient) EchoAsync(msg string) *ReqRes {

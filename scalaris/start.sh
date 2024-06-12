@@ -22,4 +22,4 @@ if [ ! -d "$CMTHOME/config" ]; then
 	mv "$CMTHOME/config/genesis.json.new" "$CMTHOME/config/genesis.json"
 fi
 
-"$BINARY" "$@" --home "$CMTHOME"  --rpc.laddr=tcp://0.0.0.0:26657 --abci=grpc
+"$BINARY" "$@" --home "$CMTHOME"  --rpc.laddr=tcp://0.0.0.0:26657 --abci=grpc --log_level="*:debug"

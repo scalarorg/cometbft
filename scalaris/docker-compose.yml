@@ -2,7 +2,7 @@ version: '3'
 
 services:
   scalaris-abci1:
-    container_name: scalaris-abci1
+    container_name: node0
     image: "scalaris/abci"
     ports:
       - "26657:26657"
@@ -13,9 +13,93 @@ services:
       - CHAIN_ID=evmos_9000-1
       - MONIKER=dockernode
     entrypoint: "/usr/bin/start.sh"
-    command: ["node", "--scalaris_addr", "host.docker.internal:8081"]
+    command: ["node", "--scalaris_addr", "host.docker.internal:8081",  "--proxy_app", "tcp://host.docker.internal:20658"]
     volumes:
-      - /tmp/abci/node1:/scalaris
+      - /tmp/abci/node0:/scalaris
       - ./build/scalaris:/usr/local/bin/scalaris:Z
       - ./start.sh:/usr/bin/start.sh
+      # For mock priv_validator.json files
+      - /tmp/abci:/mock
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.2
 
+  # node1:
+  #   container_name: node1
+  #   image: "scalaris/abci"
+  #   ports:
+  #     - "26659-26660:26656-26657"
+  #     - "26671:26660"
+  #   environment:
+  #     - ID=1
+  #     - LOG=${LOG:-cometbft.log}
+  #     - CMTHOME=/scalaris
+  #     - MONIKER=dockernode
+  #     - CHAIN_ID=evmos_9000-1
+  #   entrypoint: "/usr/bin/start.sh"
+  #   volumes:
+  #     - /tmp/abci/node1:/scalaris
+  #     - ./build/scalaris:/usr/local/bin/scalaris:Z
+  #     - ./start.sh:/usr/bin/start.sh
+  #     # For mock priv_validator.json files
+  #     - /tmp/abci:/mock
+  #   command: ["node", "--proxy_app", "tcp://host.docker.internal:21658", "--scalaris_addr", "host.docker.internal:8082",]
+  #   networks:
+  #     localnet:
+  #       ipv4_address: 192.167.10.3
+
+  # node2:
+  #   container_name: node2
+  #   image: "scalaris/abci"
+  #   environment:
+  #     - ID=2
+  #     - LOG=${LOG:-cometbft.log}
+  #     - CMTHOME=/scalaris
+  #     - MONIKER=dockernode
+  #     - CHAIN_ID=evmos_9000-1
+  #   ports:
+  #     - "26661-26662:26656-26657"
+  #     - "26672:26660"
+  #   entrypoint: "/usr/bin/start.sh"
+  #   volumes:
+  #     - /tmp/abci/node2:/scalaris
+  #     - ./build/scalaris:/usr/local/bin/scalaris:Z
+  #     - ./start.sh:/usr/bin/start.sh
+  #     # For mock priv_validator.json files
+  #     - /tmp/abci:/mock
+  #   command: ["node", "--proxy_app", "tcp://host.docker.internal:22658", "--scalaris_addr", "host.docker.internal:8083",]
+  #   networks:
+  #     localnet:
+  #       ipv4_address: 192.167.10.4
+
+  # node3:
+  #   container_name: node3
+  #   image: "scalaris/abci"
+  #   environment:
+  #     - ID=3
+  #     - LOG=${LOG:-cometbft.log}
+  #     - CMTHOME=/scalaris
+  #     - MONIKER=dockernode
+  #     - CHAIN_ID=evmos_9000-1
+  #   ports:
+  #     - "26663-26664:26656-26657"
+  #     - "26673:26660"
+  #   entrypoint: "/usr/bin/start.sh"
+  #   volumes:
+  #     - /tmp/abci/node3:/scalaris
+  #     - ./build/scalaris:/usr/local/bin/scalaris:Z
+  #     - ./start.sh:/usr/bin/start.sh
+  #     # For mock priv_validator.json files
+  #     - /tmp/abci:/mock
+  #   command: ["node", "--proxy_app", "tcp://host.docker.internal:23658", "--scalaris_addr", "host.docker.internal:8084",]
+  #   networks:
+  #     localnet:
+  #       ipv4_address: 192.167.10.5
+
+networks:
+  localnet:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.167.0.0/16

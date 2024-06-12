@@ -6,7 +6,9 @@ import (
 
 	"github.com/cometbft/cometbft/libs/service"
 	cmtsync "github.com/cometbft/cometbft/libs/sync"
+	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	consensus "github.com/cometbft/cometbft/scalaris/consensus/proto"
+	"github.com/cometbft/cometbft/types"
 )
 
 const (
@@ -29,6 +31,10 @@ type Client interface {
 	EchoAsync(msg string) *ReqRes
 
 	EchoSync(msg string) (*consensus.ResponseEcho, error)
+
+	SignProposal(chainID string, proposal *cmtproto.Proposal) error
+
+	GetPrivValidators() ([]types.PrivValidator, error)
 }
 
 // ----------------------------------------

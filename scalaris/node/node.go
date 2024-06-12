@@ -24,6 +24,7 @@ import (
 	"github.com/cometbft/cometbft/evidence"
 	"github.com/cometbft/cometbft/light"
 	cfg "github.com/cometbft/cometbft/scalaris/config"
+	"github.com/cometbft/cometbft/scalaris/consensus"
 
 	cmtjson "github.com/cometbft/cometbft/libs/json"
 	"github.com/cometbft/cometbft/libs/log"
@@ -43,6 +44,7 @@ import (
 	grpccore "github.com/cometbft/cometbft/rpc/grpc"
 	rpcserver "github.com/cometbft/cometbft/rpc/jsonrpc/server"
 	sclient "github.com/cometbft/cometbft/scalaris/client"
+	rpc "github.com/cometbft/cometbft/scalaris/rpc/core"
 	sm "github.com/cometbft/cometbft/state"
 	"github.com/cometbft/cometbft/state/indexer"
 	blockidxkv "github.com/cometbft/cometbft/state/indexer/block/kv"
@@ -331,27 +333,28 @@ type Node struct {
 	isListening bool
 
 	// services
-	consensusPeer     p2p.Peer
-	eventBus          *types.EventBus // pub/sub for services
-	stateStore        sm.Store
-	blockStore        *store.BlockStore // store the blockchain to disk
-	bcReactor         p2p.Reactor       // for block-syncing
-	mempoolReactor    p2p.Reactor       // for gossipping transactions
-	mempool           mempl.Mempool
-	stateSync         bool                    // whether the node should state sync on startup
-	stateSyncReactor  *statesync.Reactor      // for hosting and restoring state sync snapshots
-	stateSyncProvider statesync.StateProvider // provides state data for bootstrapping a node
-	stateSyncGenesis  sm.State                // provides the genesis state for state sync
-	consensusState    *cs.State               // latest consensus state
-	consensusReactor  *cs.Reactor             // for participating in the consensus
-	pexReactor        *pex.Reactor            // for exchanging peer addresses
-	evidencePool      *evidence.Pool          // tracking evidence
-	proxyApp          proxy.AppConns          // connection to the application
-	rpcListeners      []net.Listener          // rpc servers
-	txIndexer         txindex.TxIndexer
-	blockIndexer      indexer.BlockIndexer
-	indexerService    *txindex.IndexerService
-	prometheusSrv     *http.Server
+	scalarisConsensusReactor *consensus.Reactor
+	consensusPeer            p2p.Peer
+	eventBus                 *types.EventBus // pub/sub for services
+	stateStore               sm.Store
+	blockStore               *store.BlockStore // store the blockchain to disk
+	bcReactor                p2p.Reactor       // for block-syncing
+	mempoolReactor           p2p.Reactor       // for gossipping transactions
+	mempool                  mempl.Mempool
+	stateSync                bool                    // whether the node should state sync on startup
+	stateSyncReactor         *statesync.Reactor      // for hosting and restoring state sync snapshots
+	stateSyncProvider        statesync.StateProvider // provides state data for bootstrapping a node
+	stateSyncGenesis         sm.State                // provides the genesis state for state sync
+	consensusState           *cs.State               // latest consensus state
+	consensusReactor         *cs.Reactor             // for participating in the consensus
+	pexReactor               *pex.Reactor            // for exchanging peer addresses
+	evidencePool             *evidence.Pool          // tracking evidence
+	proxyApp                 proxy.AppConns          // connection to the application
+	rpcListeners             []net.Listener          // rpc servers
+	txIndexer                txindex.TxIndexer
+	blockIndexer             indexer.BlockIndexer
+	indexerService           *txindex.IndexerService
+	prometheusSrv            *http.Server
 }
 
 func initDBs(config *cfg.Config, dbProvider DBProvider) (blockStore *store.BlockStore, stateDB dbm.DB, err error) {
@@ -596,6 +599,26 @@ func createBlockchainReactor(config *cfg.Config,
 	return bcReactor, nil
 }
 
+func createAndStartConsensusClient(config *cfg.Config, consensusLogger log.Logger) (sclient.Client, error) {
+	client := sclient.NewGRPCClient(config.ScalarisAddr, true)
+	client.SetLogger(consensusLogger.With("module", "scalaris_client"))
+	if err := client.Start(); err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+func createAndStartScalarisConsensusReactor(client sclient.Client, consensusState *cs.State, consensusLogger log.Logger) (*consensus.Reactor, error) {
+	reactor := consensus.NewReactor(client, consensusState)
+	reactor.SetLogger(consensusLogger.With("module", "scalaris_consensus"))
+	if err := reactor.Start(); err != nil {
+		return nil, err
+	}
+
+	return reactor, nil
+}
+
 func createConsensusReactor(config *cfg.Config,
 	state sm.State,
 	blockExec *sm.BlockExecutor,
@@ -837,12 +860,6 @@ func startStateSync(ssR *statesync.Reactor, bcR blockSyncReactor, conR *cs.React
 	}()
 	return nil
 }
-func createConsensusPeer(config *cfg.Config, privValidator types.PrivValidator, consensusPool *cs.ConsensusPool, consensusState *cs.State, logger log.Logger) *sclient.Peer {
-	// pk, _ := privValidator.GetPubKey()
-	// addr := fmt.Sprintf("{%v}", pk.Address())
-	peer := sclient.NewConsensusPeer(config.ScalarisAddr, consensusPool, consensusState, logger)
-	return peer
-}
 
 // NewNode returns a new, ready to go, CometBFT Node.
 func NewNode(config *cfg.Config,
@@ -1067,6 +1084,20 @@ func NewNodeWithContext(ctx context.Context,
 	}
 	cpool := cs.NewConsensusPool()
 	cs.SetConsensusPool(cpool)
+
+	// Start consensus grpc client and reactor to listen for new Txs
+	consensusClient, err := createAndStartConsensusClient(config, logger)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create scalaris consensus client: %w", err)
+	}
+
+	scalarisConsensusReactor, err := createAndStartScalarisConsensusReactor(consensusClient, consensusState, logger)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create scalaris consensus reactor: %w", err)
+	}
+
 	node := &Node{
 		config:        config,
 		genesisDoc:    genDoc,
@@ -1078,25 +1109,24 @@ func NewNodeWithContext(ctx context.Context,
 		nodeInfo:  nodeInfo,
 		nodeKey:   nodeKey,
 
-		consensusPeer: createConsensusPeer(config, privValidator, cpool,
-			consensusState, logger),
-		stateStore:       stateStore,
-		blockStore:       blockStore,
-		bcReactor:        bcReactor,
-		mempoolReactor:   mempoolReactor,
-		mempool:          mempool,
-		consensusState:   consensusState,
-		consensusReactor: consensusReactor,
-		stateSyncReactor: stateSyncReactor,
-		stateSync:        stateSync,
-		stateSyncGenesis: state, // Shouldn't be necessary, but need a way to pass the genesis state
-		pexReactor:       pexReactor,
-		evidencePool:     evidencePool,
-		proxyApp:         proxyApp,
-		txIndexer:        txIndexer,
-		indexerService:   indexerService,
-		blockIndexer:     blockIndexer,
-		eventBus:         eventBus,
+		scalarisConsensusReactor: scalarisConsensusReactor,
+		stateStore:               stateStore,
+		blockStore:               blockStore,
+		bcReactor:                bcReactor,
+		mempoolReactor:           mempoolReactor,
+		mempool:                  mempool,
+		consensusState:           consensusState,
+		consensusReactor:         consensusReactor,
+		stateSyncReactor:         stateSyncReactor,
+		stateSync:                stateSync,
+		stateSyncGenesis:         state, // Shouldn't be necessary, but need a way to pass the genesis state
+		pexReactor:               pexReactor,
+		evidencePool:             evidencePool,
+		proxyApp:                 proxyApp,
+		txIndexer:                txIndexer,
+		indexerService:           indexerService,
+		blockIndexer:             blockIndexer,
+		eventBus:                 eventBus,
 	}
 	node.BaseService = *service.NewBaseService(logger, "Node", node)
 
@@ -1115,8 +1145,6 @@ func (n *Node) OnStart() error {
 		n.Logger.Info("Genesis time is in the future. Sleeping until then...", "genTime", genTime)
 		time.Sleep(genTime.Sub(now))
 	}
-	//Create consensus grpc client add a peer then add it to bcReactor for listening broadcast new Txs
-	n.startConsensusClient()
 
 	// Add private IDs to addrbook to block those peers being added
 	n.addrBook.AddPrivateIDs(splitAndTrimEmpty(n.config.P2P.PrivatePeerIDs, ",", " "))
@@ -1147,17 +1175,18 @@ func (n *Node) OnStart() error {
 
 	n.isListening = true
 
+	// Scalaris: Comment out the switch start
 	// Start the switch (the P2P server).
-	err = n.sw.Start()
-	if err != nil {
-		return err
-	}
+	// err = n.sw.Start()
+	// if err != nil {
+	// 	return err
+	// }
 
 	// Always connect to persistent peers
-	err = n.sw.DialPeersAsync(splitAndTrimEmpty(n.config.P2P.PersistentPeers, ",", " "))
-	if err != nil {
-		return fmt.Errorf("could not dial peers from persistent_peers field: %w", err)
-	}
+	// err = n.sw.DialPeersAsync(splitAndTrimEmpty(n.config.P2P.PersistentPeers, ",", " "))
+	// if err != nil {
+	// 	return fmt.Errorf("could not dial peers from persistent_peers field: %w", err)
+	// }
 
 	// Run state sync
 	if n.stateSync {
@@ -1190,9 +1219,9 @@ func (n *Node) OnStop() {
 	}
 
 	// now stop the reactors
-	if err := n.sw.Stop(); err != nil {
-		n.Logger.Error("Error closing switch", "err", err)
-	}
+	// if err := n.sw.Stop(); err != nil {
+	// 	n.Logger.Error("Error closing switch", "err", err)
+	// }
 
 	if err := n.transport.Close(); err != nil {
 		n.Logger.Error("Error closing transport", "err", err)
@@ -1269,6 +1298,18 @@ func (n *Node) ConfigureRPC() error {
 
 		Config: *n.config.RPC,
 	})
+
+	// Prepare the environment for the overriden rpc package
+	rpc.SetEnvironment(&rpc.Environment{
+		Mempool: n.mempool,
+
+		Logger: n.Logger.With("module", "rpc-scalaris"),
+
+		Config: *n.config.RPC,
+
+		ConsensusReactor: n.scalarisConsensusReactor,
+	})
+
 	if err := rpccore.InitGenesisChunks(); err != nil {
 		return err
 	}
@@ -1298,6 +1339,11 @@ func (n *Node) startRPC() ([]net.Listener, error) {
 	if config.WriteTimeout <= n.config.RPC.TimeoutBroadcastTxCommit {
 		config.WriteTimeout = n.config.RPC.TimeoutBroadcastTxCommit + 1*time.Second
 	}
+
+	// override the routes for getting the txs
+	routes := rpccore.Routes
+	routes["broadcast_tx_sync"] = rpcserver.NewRPCFunc(rpc.BroadcastTxSync, "tx")
+	routes["broadcast_tx_async"] = rpcserver.NewRPCFunc(rpc.BroadcastTxAsync, "tx")
 
 	// we may expose the rpc over both a unix and tcp socket
 	listeners := make([]net.Listener, len(listenAddrs))
@@ -1414,14 +1460,6 @@ func (n *Node) startPrometheusServer(addr string) *http.Server {
 		}
 	}()
 	return srv
-}
-func (n *Node) startConsensusClient() error {
-	n.Logger.Info("Starting scalar consensus client", "addr", n.config.ScalarisAddr)
-	n.mempoolReactor.AddPeer(n.consensusPeer)
-	n.consensusPeer.Start()
-
-	n.Logger.Info("Started scalar consensus client")
-	return nil
 }
 
 // Switch returns the Node's Switch.
