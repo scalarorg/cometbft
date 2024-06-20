@@ -20,19 +20,21 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	ConsensusApi_Echo_FullMethodName              = "/consensus.ConsensusApi/Echo"
-	ConsensusApi_GetValidatorInfo_FullMethodName  = "/consensus.ConsensusApi/GetValidatorInfo"
-	ConsensusApi_GetValidatorState_FullMethodName = "/consensus.ConsensusApi/GetValidatorState"
-	ConsensusApi_InitTransaction_FullMethodName   = "/consensus.ConsensusApi/InitTransaction"
+	ConsensusApi_Echo_FullMethodName              = "/service.ConsensusApi/Echo"
+	ConsensusApi_GetValidatorInfo_FullMethodName  = "/service.ConsensusApi/GetValidatorInfo"
+	ConsensusApi_GetValidatorState_FullMethodName = "/service.ConsensusApi/GetValidatorState"
+	ConsensusApi_InitTransaction_FullMethodName   = "/service.ConsensusApi/InitTransaction"
 )
 
 // ConsensusApiClient is the client API for ConsensusApi service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ConsensusApiClient interface {
+	// UnaryEcho is unary echo.
 	Echo(ctx context.Context, in *RequestEcho, opts ...grpc.CallOption) (*ResponseEcho, error)
 	GetValidatorInfo(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ValidatorInfo, error)
 	GetValidatorState(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ValidatorState, error)
+	// BidirectionalStreamingScalarAbci is bidi streaming.
 	InitTransaction(ctx context.Context, opts ...grpc.CallOption) (ConsensusApi_InitTransactionClient, error)
 }
 
@@ -82,7 +84,7 @@ func (c *consensusApiClient) InitTransaction(ctx context.Context, opts ...grpc.C
 
 type ConsensusApi_InitTransactionClient interface {
 	Send(*ExternalTransaction) error
-	Recv() (*CommitedTransactions, error)
+	Recv() (*ConsensusOutput, error)
 	grpc.ClientStream
 }
 
@@ -94,8 +96,8 @@ func (x *consensusApiInitTransactionClient) Send(m *ExternalTransaction) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *consensusApiInitTransactionClient) Recv() (*CommitedTransactions, error) {
-	m := new(CommitedTransactions)
+func (x *consensusApiInitTransactionClient) Recv() (*ConsensusOutput, error) {
+	m := new(ConsensusOutput)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -106,9 +108,11 @@ func (x *consensusApiInitTransactionClient) Recv() (*CommitedTransactions, error
 // All implementations must embed UnimplementedConsensusApiServer
 // for forward compatibility
 type ConsensusApiServer interface {
+	// UnaryEcho is unary echo.
 	Echo(context.Context, *RequestEcho) (*ResponseEcho, error)
 	GetValidatorInfo(context.Context, *emptypb.Empty) (*ValidatorInfo, error)
 	GetValidatorState(context.Context, *emptypb.Empty) (*ValidatorState, error)
+	// BidirectionalStreamingScalarAbci is bidi streaming.
 	InitTransaction(ConsensusApi_InitTransactionServer) error
 	mustEmbedUnimplementedConsensusApiServer()
 }
@@ -201,7 +205,7 @@ func _ConsensusApi_InitTransaction_Handler(srv interface{}, stream grpc.ServerSt
 }
 
 type ConsensusApi_InitTransactionServer interface {
-	Send(*CommitedTransactions) error
+	Send(*ConsensusOutput) error
 	Recv() (*ExternalTransaction, error)
 	grpc.ServerStream
 }
@@ -210,7 +214,7 @@ type consensusApiInitTransactionServer struct {
 	grpc.ServerStream
 }
 
-func (x *consensusApiInitTransactionServer) Send(m *CommitedTransactions) error {
+func (x *consensusApiInitTransactionServer) Send(m *ConsensusOutput) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -226,7 +230,7 @@ func (x *consensusApiInitTransactionServer) Recv() (*ExternalTransaction, error)
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var ConsensusApi_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "consensus.ConsensusApi",
+	ServiceName: "service.ConsensusApi",
 	HandlerType: (*ConsensusApiServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

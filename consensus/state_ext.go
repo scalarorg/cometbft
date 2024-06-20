@@ -134,7 +134,6 @@ func (cs *State) CreateScalarisBlock(txs *[]types.Tx, client client.Client) (*ty
 	// TODO-SCALARIS: Find a better way to decide which validator is proposer one
 	proposer := cs.Validators.Validators[0]
 	proposerAddr := proposer.PubKey.Address()
-	cs.Logger.Info("proposer address", "address", proposerAddr)
 
 	// Call `PrepareProposal` to ABCI application to get the transactions to include in the block
 	// TODO-SCALARIS: Only call `PrepareProposal` from the proposer node
@@ -218,7 +217,7 @@ func (cs *State) CreateScalarisBlock(txs *[]types.Tx, client client.Client) (*ty
 		cs.Logger.Error("failed publishing event lock", "err", err)
 	}
 
-	// Sign prevote votes
+	// Sign precommit votes
 	votes, err = cs.signVotes(cmtproto.PrecommitType, cs.ProposalBlock.Hash(), cs.ProposalBlockParts.Header(), &privValidators)
 	if err != nil {
 		return nil, err

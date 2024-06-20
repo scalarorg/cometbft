@@ -64,13 +64,11 @@ func dialerFunc(_ context.Context, addr string) (net.Conn, error) {
 func runSendTransaction(client consensus.ConsensusApiClient) {
 	println("InitTransaction start")
 	notes := []*consensus.ExternalTransaction{
-		{Namespace: "1", TxBytes: []byte("1")},
-		{Namespace: "2", TxBytes: []byte("2")},
-		{Namespace: "3", TxBytes: []byte("3")},
-		{Namespace: "4", TxBytes: []byte("4")},
-		{Namespace: "5", TxBytes: []byte("5")},
-		{Namespace: "6", TxBytes: []byte("6")},
-		{Namespace: "7", TxBytes: []byte("7")},
+		{ChainId: "1", TxBytes: [][]byte{
+			[]byte("firstTx"),
+			[]byte("secondTx"),
+			[]byte("thirdTx"),
+		}},
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -92,7 +90,7 @@ func runSendTransaction(client consensus.ConsensusApiClient) {
 			if err != nil {
 				println("client.InitTransaction failed: %v", err)
 			}
-			println("Got transactions %s", in.Transactions)
+			println("Got blocks %s", in.Blocks)
 		}
 	}()
 	println("Sending transactions")

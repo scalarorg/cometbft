@@ -61,7 +61,6 @@ func (r *Reactor) Start() error {
 
 func (r *Reactor) receiveTxRoutine() {
 	for {
-		r.Logger.Info("Waiting for commited transactions...")
 		data, err := r.api.Recv()
 
 		if err == io.EOF {
@@ -71,27 +70,35 @@ func (r *Reactor) receiveTxRoutine() {
 		}
 
 		if err != nil {
-			r.Logger.Info("client.Recv commited transactions failed: ", err.Error())
+			r.Logger.Info("Listening transactions failed: ", err.Error())
 			time.Sleep(2 * time.Second)
 
 			continue
 		}
 
-		txs := make([]types.Tx, len(data.Transactions))
+		for i := range data.Blocks {
+			block := data.Blocks[i]
 
-		r.Logger.Info("Received commited transactions", "num_txs", len(txs))
-		for i, tx := range data.Transactions {
-			txs[i] = tx.TxBytes
+			if len(block.Transactions) == 0 {
+				continue
+			}
+
+			txs := make([]types.Tx, len(block.Transactions))
+
+			r.Logger.Info("Received block", "num_txs", len(block.Transactions), "leader_round", data.LeaderRound)
+			for i := range block.Transactions {
+				txs[i] = block.Transactions[i]
+			}
+
+			_, err := r.consensusState.CreateScalarisBlock(&txs, r.client)
+
+			if err != nil {
+				r.Logger.Error("Error creating block", "err", err)
+				continue
+			}
+
+			r.Logger.Info("Created block with transactions", "num_txs", len(block.Transactions))
 		}
-
-		block, err := r.consensusState.CreateScalarisBlock(&txs, r.client)
-
-		if err != nil {
-			r.Logger.Error("Error creating block", "err", err)
-			continue
-		}
-
-		r.Logger.Info("Created block with transactions", "num_txs", len(block.Txs))
 	}
 }
 
@@ -103,10 +110,10 @@ func (r *Reactor) Stop() {
 
 func (r *Reactor) SendExternalTx(tx []byte) {
 	extTx := proto.ExternalTransaction{
-		Namespace: "AbciAdapter",
-		TxBytes:   tx,
+		ChainId: "test-chain",
+		TxBytes: [][]byte{
+			[]byte(tx)},
 	}
-	r.Logger.Info("Send transaction to scalaris consensus server...")
 	err := r.api.Send(&extTx)
 	if err != nil {
 		r.Logger.Error("Failed to send transaction to scarlaris server with error", err)

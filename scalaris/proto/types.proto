@@ -1,5 +1,5 @@
 syntax = "proto3";
-package consensus;
+package types;
 
 option go_package = "github.com/cometbft/cometbft/scalaris/consensus/proto";
 
@@ -36,11 +36,28 @@ message ValidatorState {
   ValidatorInfo validator_info = 1;
   int64 round = 2;
 }
+
 message ExternalTransaction {
-    string namespace = 1;   //Namespace used to classify services
-    bytes tx_bytes = 2;     //Transaction hash or some raw data 
+  string chain_id = 1;            //Namespace used to classify services
+  repeated bytes tx_bytes = 2;    //Transaction hash or some raw data 
 }
 
-message CommitedTransactions {
-    repeated ExternalTransaction transactions = 1;
+message ReputationScore {
+  uint32 authority_index = 1;
+  uint64 score = 2;
+}
+
+message Block {
+  uint32 authority_index = 1;
+  repeated bytes transactions = 2;
+}
+
+message ConsensusOutput {
+  uint64 leader_round = 1;
+  uint32 leader_author_index = 2;
+  uint64 commit_timestamp = 3;
+  uint64 commit_sub_dag_index = 4;
+  bytes commit_digest = 5;
+  repeated ReputationScore reputation_scores = 6;
+  repeated Block blocks = 7;
 }

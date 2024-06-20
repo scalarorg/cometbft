@@ -20,10 +20,8 @@ func MockGenesisValidators() ([]types.PrivValidator, error) {
 		privValStateFile := fmt.Sprintf("/mock/node%d/data/priv_validator_state.json", i)
 
 		if cmtos.FileExists(privValKeyFile) {
-			println("Loading validator key file")
 			pv = privval.LoadFilePV(privValKeyFile, privValStateFile)
 		} else {
-			println("Generating new validator key file")
 			pv = privval.GenFilePV(privValKeyFile, privValStateFile)
 			pv.Save()
 		}

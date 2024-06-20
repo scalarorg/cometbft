@@ -1,13 +1,16 @@
 syntax = "proto3";
-package consensus;
+package service;
 import "google/protobuf/Empty.proto";
 import "proto/types.proto";
 
 option go_package = "github.com/cometbft/cometbft/scalaris/consensus/proto";
 
-service ConsensusApi {
-   rpc Echo(RequestEcho) returns (ResponseEcho);
-   rpc GetValidatorInfo(google.protobuf.Empty) returns (ValidatorInfo);
-   rpc GetValidatorState(google.protobuf.Empty) returns (ValidatorState);
-   rpc InitTransaction(stream ExternalTransaction) returns (stream CommitedTransactions) {}
-}
+ // Echo is the echo service.
+ service ConsensusApi {
+   // UnaryEcho is unary echo.
+   rpc Echo(types.RequestEcho) returns (types.ResponseEcho);
+   rpc GetValidatorInfo(google.protobuf.Empty) returns (types.ValidatorInfo);
+   rpc GetValidatorState(google.protobuf.Empty) returns (types.ValidatorState);
+   // BidirectionalStreamingScalarAbci is bidi streaming.
+   rpc InitTransaction(stream types.ExternalTransaction) returns (stream types.ConsensusOutput) {}
+ }
