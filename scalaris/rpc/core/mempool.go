@@ -14,11 +14,6 @@ func sendTxToScalarisConsensus(tx types.Tx, res *abci.Response) {
 	switch r := res.Value.(type) {
 	case *abci.Response_CheckTx:
 		if r.CheckTx.Code == abci.CodeTypeOK {
-			env.Logger.Info(
-				"Send tx to scalaris consensus from BroadcastTx",
-				"tx", types.Tx(tx).Hash(),
-				"res", r,
-			)
 			env.ConsensusReactor.SendExternalTx(tx)
 		}
 	default:

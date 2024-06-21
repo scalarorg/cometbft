@@ -105,21 +105,67 @@ func runSendTransaction(client consensus.ConsensusApiClient) {
 	<-waitc
 }
 
+func (cli *grpcClient) Connect() error {
+	RETRY_LOOP:
+	for {
+		conn, err := grpc.Dial(cli.addr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			// grpc.WithContextDialer(dialerFunc),
+		)
+		if err != nil {
+			cli.Logger.Error("Error dialing grpc", "err", err)
+			if cli.mustConnect {
+				return err
+			}
+			cli.Logger.Error(fmt.Sprintf("abci.grpcClient failed to connect to %v.  Retrying...\n", cli.addr), "err", err)
+			time.Sleep(time.Second * dialRetryIntervalSeconds)
+			continue RETRY_LOOP
+		}
+
+		cli.Logger.Info("Dialed server. Waiting for echo.", "addr", cli.addr)
+		client := consensus.NewConsensusApiClient(conn)
+		cli.conn = conn
+
+	ENSURE_CONNECTED:
+		for {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			// valInfo, err := client.GetValidatorInfo(ctx, &emptypb.Empty{}, grpc.WaitForReady(true))
+			// if err == nil {
+			// 	cli.Logger.Info("Get validator info", "info", valInfo)
+			// 	break ENSURE_CONNECTED
+			// } else {
+			// 	cli.Logger.Error("Get validator error.", "err", err)
+			// }
+			echoRes, err := client.Echo(ctx, &consensus.RequestEcho{Message: "Hello Scalaris"}, grpc.WaitForReady(true))
+			if err == nil {
+				cli.Logger.Info("Echo result", "message", echoRes.Message)
+				// go runSendTransaction(client)
+				break ENSURE_CONNECTED
+			}
+			cli.Logger.Error("Echo failed", "err", err)
+			time.Sleep(time.Second * echoRetryIntervalSeconds)
+		}
+
+		cli.client = client
+		return nil
+	}
+}
+
 func (cli *grpcClient) Start() error {
-	cli.BaseService.Logger.Info("Starting abci.grpcClient", "addr", cli.addr)
-	println("Starting abci.grpcClient", "addr", cli.addr)
+	cli.Logger.Info("Starting abci adapter", "addr", cli.addr)
 	if err := cli.BaseService.OnStart(); err != nil {
-		println("Error starting abci.grpcClient", "err", err)
+		cli.Logger.Error("Error starting abci adapte", "err", err)
 		return err
 	}
 
 	// Start the main loop for processing responses.
-	println("Starting main loop for processing responses")
+	cli.Logger.Info("Starting main loop for processing responses")
 
 	// This processes asynchronous request/response messages and dispatches
 	// them to callbacks.
 	go func() {
-		println("Processing asynchronous request/response messages and dispatching them to callbacks")
+		cli.Logger.Info("Processing asynchronous request/response messages and dispatching them to callbacks")
 		// Use a separate function to use defer for mutex unlocks (this handles panics)
 		callCb := func(reqres *ReqRes) {
 			cli.mtx.Lock()
@@ -144,51 +190,7 @@ func (cli *grpcClient) Start() error {
 		}
 	}()
 
-RETRY_LOOP:
-	for {
-		conn, err := grpc.Dial(cli.addr,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			// grpc.WithContextDialer(dialerFunc),
-		)
-		if err != nil {
-			println("Error dialing grpc", "err: %v", err)
-			if cli.mustConnect {
-				return err
-			}
-			cli.Logger.Error(fmt.Sprintf("abci.grpcClient failed to connect to %v.  Retrying...\n", cli.addr), "err", err)
-			time.Sleep(time.Second * dialRetryIntervalSeconds)
-			continue RETRY_LOOP
-		}
-
-		cli.Logger.Info("Dialed server. Waiting for echo.", "addr", cli.addr)
-		client := consensus.NewConsensusApiClient(conn)
-		cli.conn = conn
-
-	ENSURE_CONNECTED:
-		for {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			valInfo, err := client.GetValidatorInfo(ctx, &emptypb.Empty{}, grpc.WaitForReady(true))
-			if err == nil {
-				println("Get validator info result: %v", valInfo)
-				break ENSURE_CONNECTED
-			} else {
-				cli.Logger.Info("Get validator error.", "err", err)
-			}
-			echoRes, err := client.Echo(ctx, &consensus.RequestEcho{Message: "Hello Scalaris"}, grpc.WaitForReady(true))
-			if err == nil {
-				println("Echo result: %v", echoRes.Message)
-				// go runSendTransaction(client)
-				break ENSURE_CONNECTED
-			}
-			println("Echo error: %v", err.Error())
-			cli.Logger.Error("Echo failed", "err", err)
-			time.Sleep(time.Second * echoRetryIntervalSeconds)
-		}
-
-		cli.client = client
-		return nil
-	}
+	return cli.Connect()
 }
 
 func (cli *grpcClient) OnStop() {
@@ -211,9 +213,9 @@ func (cli *grpcClient) StopForError(err error) {
 	}
 	cli.mtx.Unlock()
 
-	cli.Logger.Error(fmt.Sprintf("Stopping abci.grpcClient for error: %v", err.Error()))
+	cli.Logger.Error("Stopping abci adapder for error", "err", err)
 	if err := cli.Stop(); err != nil {
-		cli.Logger.Error("Error stopping abci.grpcClient", "err", err)
+		cli.Logger.Error("Error stopping abci adapter", "err", err)
 	}
 }
 

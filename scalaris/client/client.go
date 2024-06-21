@@ -35,6 +35,8 @@ type Client interface {
 	SignProposal(chainID string, proposal *cmtproto.Proposal) error
 
 	GetPrivValidators() ([]types.PrivValidator, error)
+
+	Connect() error
 }
 
 // ----------------------------------------

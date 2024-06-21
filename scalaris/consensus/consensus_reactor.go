@@ -65,14 +65,23 @@ func (r *Reactor) receiveTxRoutine() {
 
 		if err == io.EOF {
 			// read done.
+			r.Logger.Error("Connection closed by server", "err", err)
 			r.Stop()
 			return
 		}
 
 		if err != nil {
-			r.Logger.Info("Listening transactions failed: ", err.Error())
-			time.Sleep(2 * time.Second)
+			r.Logger.Error("Listening transactions failed: ", err)
 
+			// Retry
+			err = r.client.Connect()
+
+			if err != nil {
+				r.Logger.Error("Failed to reconnect to server", "err", err)
+			}
+
+			time.Sleep(2 * time.Second)
+			
 			continue
 		}
 
