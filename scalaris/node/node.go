@@ -640,6 +640,11 @@ func createConsensusReactor(config *cfg.Config,
 		evidencePool,
 		cs.StateMetrics(csMetrics),
 	)
+
+	// SCALARIS: Set the timeout ticker to a mock ticker to bypass the timeout
+	// TODO-SCALARIS: Remove this when the timeout ticker is implemented
+	consensusState.SetTimeoutTicker(cs.NewMockTimeoutTicker())
+
 	consensusState.SetLogger(consensusLogger)
 	if privValidator != nil {
 		consensusState.SetPrivValidator(privValidator)
