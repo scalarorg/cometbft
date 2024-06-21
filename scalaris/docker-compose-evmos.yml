@@ -1,0 +1,189 @@
+version: '3'
+
+services:
+  scalaris1:
+    networks:
+      evmos-network:
+        ipv4_address: 10.0.20.11
+    image: scalaris:latest
+    container_name: evmos-consensus1
+    hostname: scalaris1
+    environment:
+      - CONSENSUS=mysticeti
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info,sui_core=debug,sui_network=debug,sui_node=debug,narwhal=debug,narwhal-primary::helper=info,jsonrpsee=error
+      - RPC_WORKER_THREAD=12
+    volumes:
+      - ${PATH_SCALARIS_GENESIS}/files/scalaris1-8080.yaml:/opt/scalaris/config/scalaris.yaml:ro
+      - ${PATH_SCALARIS_GENESIS}/files/genesis.blob:/opt/scalaris/config/genesis.blob:ro
+      - ${PATH_SCALARIS}/db1:/opt/scalaris/db:rw
+    command:
+      [
+        "/usr/local/bin/scalaris",
+        "--config-path",
+        "/opt/scalaris/config/scalaris.yaml"
+      ]
+    restart: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "10"
+        max-size: "1g"
+  scalaris2:
+    networks:
+      evmos-network:
+        ipv4_address: 10.0.20.12
+    image: scalaris:latest
+    container_name: evmos-consensus2
+    hostname: scalaris2
+    environment:
+      - CONSENSUS=mysticeti
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info,sui_core=debug,sui_network=debug,sui_node=debug,narwhal=debug,narwhal-primary::helper=info,jsonrpsee=error
+      - RPC_WORKER_THREAD=12
+    volumes:
+      - ${PATH_SCALARIS_GENESIS}/files/scalaris2-8080.yaml:/opt/scalaris/config/scalaris.yaml:ro
+      - ${PATH_SCALARIS_GENESIS}/files/genesis.blob:/opt/scalaris/config/genesis.blob:ro
+      - ${PATH_SCALARIS}/db2:/opt/scalaris/db:rw
+    command:
+      [
+        "/usr/local/bin/scalaris",
+        "--config-path",
+        "/opt/scalaris/config/scalaris.yaml"
+      ]
+    restart: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "10"
+        max-size: "1g"
+  scalaris3:
+    networks:
+      evmos-network:
+        ipv4_address: 10.0.20.13
+    image: scalaris:latest
+    container_name: evmos-consensus3
+    hostname: scalaris3
+    environment:
+      - CONSENSUS=mysticeti
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info,sui_core=debug,sui_network=debug,sui_node=debug,narwhal=debug,narwhal-primary::helper=info,jsonrpsee=error
+      - RPC_WORKER_THREAD=12
+    volumes:
+      - ${PATH_SCALARIS_GENESIS}/files/scalaris3-8080.yaml:/opt/scalaris/config/scalaris.yaml:ro
+      - ${PATH_SCALARIS_GENESIS}/files/genesis.blob:/opt/scalaris/config/genesis.blob:ro
+      - ${PATH_SCALARIS}/db3:/opt/scalaris/db:rw
+    command:
+      [
+        "/usr/local/bin/scalaris",
+        "--config-path",
+        "/opt/scalaris/config/scalaris.yaml"
+      ]
+    restart: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "10"
+        max-size: "1g"
+  scalaris4:
+    networks:
+      evmos-network:
+        ipv4_address: 10.0.20.14
+    image: scalaris:latest
+    container_name: evmos-consensus4
+    hostname: scalaris4
+    environment:
+      - CONSENSUS=mysticeti
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info,sui_core=debug,sui_network=debug,sui_node=debug,narwhal=debug,narwhal-primary::helper=info,jsonrpsee=error
+      - RPC_WORKER_THREAD=12
+    volumes:
+      - ${PATH_SCALARIS_GENESIS}/files/scalaris4-8080.yaml:/opt/scalaris/config/scalaris.yaml:ro
+      - ${PATH_SCALARIS_GENESIS}/files/genesis.blob:/opt/scalaris/config/genesis.blob:ro
+      - ${PATH_SCALARIS}/db4:/opt/scalaris/db:rw
+    command:
+      [
+        "/usr/local/bin/scalaris",
+        "--config-path",
+        "/opt/scalaris/config/scalaris.yaml"
+      ]
+    restart: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "10"
+        max-size: "1g"
+  evmos1:
+    container_name: evmosnode1
+    image: "evmos/node"
+    ports:
+      - "8145-8146:8545-8546"
+    volumes:
+      - ${PATH_EVMOS}/node1/evmosd:/evmos:Z
+    command:
+      - /evmosd start --home /evmos --chain-id=evmos_9000-1 --json-rpc.enable --json-rpc.address=0.0.0.0:8545 --with-tendermint=false --grpc-only --rpc.laddr=tcp://evmos-abci1:26657 --node=tcp://evmos-abci1:26657 --transport="grpc" --pruning=nothing
+    networks:
+      evmos-network:
+        ipv4_address: 10.0.20.21
+
+  evmos2:
+    container_name: evmosnode2
+    image: "evmos/node"
+    ports:
+      - "8245-8246:8545-8546"
+    volumes:
+      - ${PATH_EVMOS}/node2/evmosd:/evmos:Z
+    command:
+      - /evmosd start --home /evmos --chain-id=evmos_9000-1 --json-rpc.enable --json-rpc.address=0.0.0.0:8545 --with-tendermint=false --grpc-only --rpc.laddr=tcp://evmos-abci2:26657 --node=tcp://evmos-abci2:26657 --transport="grpc" --pruning=nothing
+    networks:
+      evmos-network:
+        ipv4_address: 10.0.20.22
+
+  evmos-abci1:
+    container_name: evmos-abci1
+    image: "scalaris/abci"
+    environment:
+      - ID=0
+      - LOG=${LOG:-scalaris.log}
+      - CMTHOME=/scalaris
+      - CHAIN_ID=evmos_9000-1
+      - MONIKER=dockernode
+    entrypoint: "/usr/bin/start.sh"
+    command: ["node", "--scalaris_addr", "scalaris1:8080",  "--proxy_app", "tcp://evmos1:26658"]
+    volumes:
+      - ${PATH_ABCI}/node1:/scalaris
+      - ./build/scalaris:/usr/local/bin/scalaris:Z
+      - ./start.sh:/usr/bin/start.sh
+      # For mock priv_validator.json files
+      - ${PATH_ABCI}/abci_mock_1:/mock
+    networks:
+      evmos-network:
+        ipv4_address: 10.0.20.25
+
+  evmos-abci2:
+    container_name: evmos-abci2
+    image: "scalaris/abci"
+    environment:
+      - ID=1
+      - LOG=${LOG:-cometbft.log}
+      - CMTHOME=/scalaris
+      - MONIKER=dockernode
+      - CHAIN_ID=evmos_9000-1
+    entrypoint: "/usr/bin/start.sh"
+    volumes:
+      - ${PATH_ABCI}/node2:/scalaris
+      - ./build/scalaris:/usr/local/bin/scalaris:Z
+      - ./start.sh:/usr/bin/start.sh
+      # For mock priv_validator.json files
+      - ${PATH_ABCI}/abci_mock_2:/mock
+    command: ["node", "--scalaris_addr", "scalaris2:8080", "--proxy_app", "tcp://evmos2:26658"]
+    networks:
+      evmos-network:
+        ipv4_address: 10.0.20.26
+
+networks:
+  evmos-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.20.0/24
