@@ -40,13 +40,11 @@ func (r *Reactor) SetLogger(logger log.Logger) {
 }
 
 func (r *Reactor) Start() error {
-	api, err := r.client.InitTransaction(context.Background())
+	err := r.StartConsensusApiClient()
 
 	if err != nil {
 		return err
 	}
-
-	r.api = api
 
 	if r.consensusState.Height == 1 {
 		r.Logger.Info("No blocks committed yet. Initializing state with genesis block")
@@ -64,6 +62,18 @@ func (r *Reactor) Start() error {
 
 	// Start the transaction processing routine
 	go r.processTxsRoutine()
+
+	return nil
+}
+
+func (r *Reactor) StartConsensusApiClient() error {
+	api, err := r.client.InitTransaction(context.Background())
+
+	if err != nil {
+		return err
+	}
+
+	r.api = api
 
 	return nil
 }
@@ -89,9 +99,17 @@ func (r *Reactor) receiveTxRoutine() {
 
 			if err != nil {
 				r.Logger.Error("Failed to reconnect to server", "err", err)
+				time.Sleep(2 * time.Second)
+				continue
 			}
 
-			time.Sleep(2 * time.Second)
+			err = r.StartConsensusApiClient()
+
+			if err != nil {
+				r.Logger.Error("Failed to start consensus api client", "err", err)
+				time.Sleep(2 * time.Second)
+				continue
+			}
 
 			continue
 		}
