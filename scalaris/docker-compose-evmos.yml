@@ -113,13 +113,14 @@ services:
       options:
         max-file: "10"
         max-size: "1g"
+
   evmos1:
     container_name: evmosnode1
     image: "evmos/node"
     ports:
       - "8145-8146:8545-8546"
     volumes:
-      - ${PATH_EVMOS}/node1/evmosd:/evmos:Z
+      - ${PATH_EVMOS}/node0/evmosd:/evmos:Z
     command:
       - /evmosd start --home /evmos --chain-id=evmos_9000-1 --json-rpc.enable --json-rpc.address=0.0.0.0:8545 --with-tendermint=false --grpc-only --rpc.laddr=tcp://evmos-abci1:26657 --node=tcp://evmos-abci1:26657 --transport="grpc" --pruning=nothing
     networks:
@@ -132,12 +133,38 @@ services:
     ports:
       - "8245-8246:8545-8546"
     volumes:
-      - ${PATH_EVMOS}/node2/evmosd:/evmos:Z
+      - ${PATH_EVMOS}/node1/evmosd:/evmos:Z
     command:
       - /evmosd start --home /evmos --chain-id=evmos_9000-1 --json-rpc.enable --json-rpc.address=0.0.0.0:8545 --with-tendermint=false --grpc-only --rpc.laddr=tcp://evmos-abci2:26657 --node=tcp://evmos-abci2:26657 --transport="grpc" --pruning=nothing
     networks:
       evmos-network:
         ipv4_address: 10.0.20.22
+  
+  evmos3:
+    container_name: evmosnode3
+    image: "evmos/node"
+    ports:
+      - "8345-8346:8545-8546"
+    volumes:
+      - ${PATH_EVMOS}/node2/evmosd:/evmos:Z
+    command:
+      - /evmosd start --home /evmos --chain-id=evmos_9000-1 --json-rpc.enable --json-rpc.address=0.0.0.0:8545 --with-tendermint=false --grpc-only --rpc.laddr=tcp://evmos-abci3:26657 --node=tcp://evmos-abci3:26657 --transport="grpc" --pruning=nothing
+    networks:
+      evmos-network:
+        ipv4_address: 10.0.20.23
+
+  evmos4:
+    container_name: evmosnode4
+    image: "evmos/node"
+    ports:
+      - "8445-8446:8545-8546"
+    volumes:
+      - ${PATH_EVMOS}/node3/evmosd:/evmos:Z
+    command:
+      - /evmosd start --home /evmos --chain-id=evmos_9000-1 --json-rpc.enable --json-rpc.address=0.0.0.0:8545 --with-tendermint=false --grpc-only --rpc.laddr=tcp://evmos-abci4:26657 --node=tcp://evmos-abci4:26657 --transport="grpc" --pruning=nothing
+    networks:
+      evmos-network:
+        ipv4_address: 10.0.20.24
 
   evmos-abci1:
     container_name: evmos-abci1
@@ -151,7 +178,7 @@ services:
     entrypoint: "/usr/bin/start.sh"
     command: ["node", "--scalaris_addr", "scalaris1:8080",  "--proxy_app", "tcp://evmos1:26658"]
     volumes:
-      - ${PATH_ABCI}/node1:/scalaris
+      - ${PATH_ABCI}/node0:/scalaris
       - ./build/scalaris:/usr/local/bin/scalaris:Z
       - ./start.sh:/usr/bin/start.sh
       # For mock priv_validator.json files
@@ -171,7 +198,7 @@ services:
       - CHAIN_ID=evmos_9000-1
     entrypoint: "/usr/bin/start.sh"
     volumes:
-      - ${PATH_ABCI}/node2:/scalaris
+      - ${PATH_ABCI}/node1:/scalaris
       - ./build/scalaris:/usr/local/bin/scalaris:Z
       - ./start.sh:/usr/bin/start.sh
       # For mock priv_validator.json files
@@ -180,6 +207,48 @@ services:
     networks:
       evmos-network:
         ipv4_address: 10.0.20.26
+    
+  evmos-abci3:
+    container_name: evmos-abci3
+    image: "scalaris/abci"
+    environment:
+      - ID=1
+      - LOG=${LOG:-cometbft.log}
+      - CMTHOME=/scalaris
+      - MONIKER=dockernode
+      - CHAIN_ID=evmos_9000-1
+    entrypoint: "/usr/bin/start.sh"
+    volumes:
+      - ${PATH_ABCI}/node2:/scalaris
+      - ./build/scalaris:/usr/local/bin/scalaris:Z
+      - ./start.sh:/usr/bin/start.sh
+      # For mock priv_validator.json files
+      - ${PATH_ABCI}/abci_mock_3:/mock
+    command: ["node", "--scalaris_addr", "scalaris3:8080", "--proxy_app", "tcp://evmos3:26658"]
+    networks:
+      evmos-network:
+        ipv4_address: 10.0.20.27
+
+  evmos-abci4:
+    container_name: evmos-abci4
+    image: "scalaris/abci"
+    environment:
+      - ID=1
+      - LOG=${LOG:-cometbft.log}
+      - CMTHOME=/scalaris
+      - MONIKER=dockernode
+      - CHAIN_ID=evmos_9000-1
+    entrypoint: "/usr/bin/start.sh"
+    volumes:
+      - ${PATH_ABCI}/node3:/scalaris
+      - ./build/scalaris:/usr/local/bin/scalaris:Z
+      - ./start.sh:/usr/bin/start.sh
+      # For mock priv_validator.json files
+      - ${PATH_ABCI}/abci_mock_4:/mock
+    command: ["node", "--scalaris_addr", "scalaris4:8080", "--proxy_app", "tcp://evmos4:26658"]
+    networks:
+      evmos-network:
+        ipv4_address: 10.0.20.28
 
 networks:
   evmos-network:

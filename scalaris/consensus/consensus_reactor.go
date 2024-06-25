@@ -15,22 +15,24 @@ import (
 type Client client.Client
 
 type Reactor struct {
-	Logger         log.Logger
-	client         Client
-	api            proto.ConsensusApi_InitTransactionClient
-	consensusState *cs.State
-	totalTxsSent   int
-	pool           ConsensusMempool
-	newTxNotify    chan struct{}
+	Logger           log.Logger
+	client           Client
+	api              proto.ConsensusApi_InitTransactionClient
+	consensusState   *cs.State
+	consensusReactor *cs.Reactor
+	totalTxsSent     int
+	pool             ConsensusMempool
+	newTxNotify      chan struct{}
 }
 
-func NewReactor(client Client, consensusState *cs.State) *Reactor {
+func NewReactor(client Client, consensusState *cs.State, consensusReactor *cs.Reactor) *Reactor {
 	return &Reactor{
-		client:         client,
-		consensusState: consensusState,
-		totalTxsSent:   0,
-		pool:           NewConsensusMempool(),
-		newTxNotify:    make(chan struct{}),
+		client:           client,
+		consensusState:   consensusState,
+		consensusReactor: consensusReactor,
+		totalTxsSent:     0,
+		pool:             NewConsensusMempool(),
+		newTxNotify:      make(chan struct{}),
 	}
 }
 
@@ -57,13 +59,24 @@ func (r *Reactor) Start() error {
 		}
 	}
 
+	go r.startConsensusRoutine()
+
+	return nil
+}
+
+func (r *Reactor) startConsensusRoutine() {
+	for !r.consensusReactor.WaitSync() {
+		r.Logger.Info("Waiting for consensus reactor to sync")
+		time.Sleep(2 * time.Second)
+	}
+
+	r.Logger.Info("State/Block synced. Starting consensus routine")
+
 	// Start the transaction receiving routine
 	go r.receiveTxRoutine()
 
 	// Start the transaction processing routine
 	go r.processTxsRoutine()
-
-	return nil
 }
 
 func (r *Reactor) StartConsensusApiClient() error {
@@ -135,6 +148,7 @@ func (r *Reactor) receiveTxRoutine() {
 }
 
 func (r *Reactor) processTxsRoutine() {
+
 	num_processed_txs := 0
 	num_invalid_txs := 0
 
