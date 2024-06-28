@@ -48,17 +48,6 @@ func (r *Reactor) Start() error {
 		return err
 	}
 
-	if r.consensusState.Height == 1 {
-		r.Logger.Info("No blocks committed yet. Initializing state with genesis block")
-		// Initialize the state with empty block
-		txs := make([]types.Tx, 0)
-
-		_, err := r.consensusState.CreateScalarisBlock(&txs, r.client)
-		if err != nil {
-			return err
-		}
-	}
-
 	go r.startConsensusRoutine()
 
 	return nil
@@ -70,7 +59,20 @@ func (r *Reactor) startConsensusRoutine() {
 		time.Sleep(2 * time.Second)
 	}
 
-	r.Logger.Info("State/Block synced. Starting consensus routine")
+
+	if r.consensusState.Height == 1 {
+		r.Logger.Debug("No blocks committed yet. Initializing state with genesis block")
+		// Initialize the state with empty block
+		txs := make([]types.Tx, 0)
+
+		_, err := r.consensusState.CreateScalarisBlock(&txs, r.client)
+		if err != nil {
+			r.Logger.Error("Error while creating genesis block", "err", err)
+			return
+		}
+	}
+
+	r.Logger.Debug("State/Block synced. Starting Scalaris consensus routine")
 
 	// Start the transaction receiving routine
 	go r.receiveTxRoutine()
@@ -92,7 +94,7 @@ func (r *Reactor) StartConsensusApiClient() error {
 }
 
 func (r *Reactor) receiveTxRoutine() {
-	num_received_txs := 0
+	numReceivedTxs := 0
 
 	for {
 		data, err := r.api.Recv()
@@ -134,12 +136,14 @@ func (r *Reactor) receiveTxRoutine() {
 				continue
 			}
 
-			num_received_txs += len(block.Transactions)
+			numReceivedTxs += len(block.Transactions)
 
-			r.Logger.Info("Received block", "num_txs", len(block.Transactions), "num_received_txs", num_received_txs)
+			r.Logger.Debug("Received block", "num_txs", len(block.Transactions), "num_received_txs", numReceivedTxs)
 			for i := range block.Transactions {
 				r.pool.AddTx(block.Transactions[i])
 			}
+
+			// Notify the transaction processing routine
 			go func() {
 				r.newTxNotify <- struct{}{}
 			}()
@@ -148,35 +152,37 @@ func (r *Reactor) receiveTxRoutine() {
 }
 
 func (r *Reactor) processTxsRoutine() {
+	// TODO_SCALARIS: Change the max block txs to a more reasonable value / make it configurable
+	const MAX_BLOCK_TXS = 1000
 
-	num_processed_txs := 0
-	num_invalid_txs := 0
+	numProcessedTxs := 0
+	numInvalidTxs := 0
 
 	for {
-		txs := r.pool.PopTxs(1000)
+		txs := r.pool.PopTxs(MAX_BLOCK_TXS)
 
 		if len(txs) == 0 {
-			r.Logger.Info("No transactions to process. Waiting for new transactions")
+			// Wait for new transactions to be added to the pool
 			<-r.newTxNotify
 			continue
 		}
 
-		r.Logger.Info("Processing transactions", "num_txs", len(txs))
+		r.Logger.Debug("Processing transactions", "num_txs", len(txs))
 		_, err := r.consensusState.CreateScalarisBlock(&txs, r.client)
 
 		if err != nil {
-			num_invalid_txs += len(txs)
-			r.Logger.Error("Error creating block", "num_invalid_txs", num_invalid_txs, "err", err)
+			numInvalidTxs += len(txs)
+			r.Logger.Error("Error while creating block", "err", err, "num_invalid_txs", numInvalidTxs)
 			continue
 		}
 
-		num_processed_txs += len(txs)
-		r.Logger.Info("Created block with transactions", "num_txs", len(txs), "num_processed_txs", num_processed_txs)
+		numProcessedTxs += len(txs)
+		r.Logger.Debug("Created block", "num_txs", len(txs), "num_processed_txs", numProcessedTxs)
 	}
 }
 
 func (r *Reactor) Stop() {
-	r.Logger.Info("Stopping scalaris consensus reactor")
+	r.Logger.Info("Stopping Scalaris consensus reactor")
 	r.api.CloseSend()
 	r.client.Stop()
 }
@@ -184,13 +190,14 @@ func (r *Reactor) Stop() {
 func (r *Reactor) SendExternalTx(tx []byte) {
 	r.totalTxsSent++
 	extTx := proto.ExternalTransaction{
+		// TODO_SCALARIS: Change the chain id to the actual chain id
 		ChainId: "test-chain",
 		TxBytes: [][]byte{
 			[]byte(tx)},
 	}
-	r.Logger.Info("Sending transaction to scalaris server", "totalTxsSent", r.totalTxsSent)
+	r.Logger.Info("Sending transaction to Scalaris server", "totalTxsSent", r.totalTxsSent)
 	err := r.api.Send(&extTx)
 	if err != nil {
-		r.Logger.Error("Failed to send transaction to scarlaris server with error", err)
+		r.Logger.Error("Failed to send transaction to Scarlaris server with error", err)
 	}
 }
