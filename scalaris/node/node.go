@@ -1180,21 +1180,22 @@ func (n *Node) OnStart() error {
 
 	n.isListening = true
 
+	// TODO: SCALARIS: Start the switch (the P2P server).
 	// Start the switch (the P2P server).
-	err = n.sw.Start()
-	if err != nil {
-		return err
-	}
+	// err = n.sw.Start()
+	// if err != nil {
+	// 	return err
+	// }
 
 	// SCALARIS: Temporarily set the consensus reactor to sleep
 	// to prevent it from starting some consensus gossip event routine (conR.isRunning() == false)
-	n.consensusReactor.Sleep()
+	// n.consensusReactor.Sleep()
 
 	// Always connect to persistent peers
-	err = n.sw.DialPeersAsync(splitAndTrimEmpty(n.config.P2P.PersistentPeers, ",", " "))
-	if err != nil {
-		return fmt.Errorf("could not dial peers from persistent_peers field: %w", err)
-	}
+	// err = n.sw.DialPeersAsync(splitAndTrimEmpty(n.config.P2P.PersistentPeers, ",", " "))
+	// if err != nil {
+	// 	return fmt.Errorf("could not dial peers from persistent_peers field: %w", err)
+	// }
 
 	// Run state sync
 	if n.stateSync {
@@ -1227,12 +1228,12 @@ func (n *Node) OnStop() {
 	}
 
 	// SCALARIS: Wake the consensus reactor to allow it to stop gracefully
-	n.consensusReactor.Wake()
+	// n.consensusReactor.Wake()
 
 	// now stop the reactors
-	if err := n.sw.Stop(); err != nil {
-		n.Logger.Error("Error closing switch", "err", err)
-	}
+	// if err := n.sw.Stop(); err != nil {
+	// 	n.Logger.Error("Error closing switch", "err", err)
+	// }
 
 	if err := n.transport.Close(); err != nil {
 		n.Logger.Error("Error closing transport", "err", err)
