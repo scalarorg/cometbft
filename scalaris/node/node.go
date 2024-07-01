@@ -59,6 +59,8 @@ import (
 	cmttime "github.com/cometbft/cometbft/types/time"
 	"github.com/cometbft/cometbft/version"
 
+	api "github.com/cometbft/cometbft/scalaris/api"
+
 	_ "github.com/lib/pq" // provide the psql db driver
 )
 
@@ -1208,6 +1210,14 @@ func (n *Node) OnStart() error {
 		if err != nil {
 			return fmt.Errorf("failed to start state sync: %w", err)
 		}
+	}
+
+	err = api.StartExplorerApi(n.config, n.Logger.With("module", "explorer-api"))
+
+	if err != nil {
+		return fmt.Errorf("SCALARIS: failed to start explorer API: %w", err)
+	} else {
+		n.Logger.Info("SCALARIS: started explorer API")
 	}
 
 	return nil
