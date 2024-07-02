@@ -11,7 +11,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/grpc/tmservice"
 	"github.com/cosmos/cosmos-sdk/codec/types"
-	"github.com/cosmos/cosmos-sdk/server"
 	"github.com/cosmos/cosmos-sdk/server/api"
 	svrcfg "github.com/cosmos/cosmos-sdk/server/config"
 	svrtypes "github.com/cosmos/cosmos-sdk/server/types"
@@ -24,20 +23,19 @@ func tempQueryFn(req abci.RequestQuery) abci.ResponseQuery {
 
 func StartExplorerApi(cfg *cfg.Config, logger log.Logger) error {
 	logger.Info("Starting explorer API server...", "step_num", "1")
-	cmd := server.StartCmd(nil, "/foobar")
+	queryRouter := baseapp.NewGRPCQueryRouter()
+	interfaceRegistry := types.NewInterfaceRegistry()
+	queryRouter.SetInterfaceRegistry(interfaceRegistry)
 
-	logger.Info("Starting explorer API server...", "step_num", "2")
+	logger.Info("Starting explorer API server...", "step_num", "2", "query_router", queryRouter, "interface_registry", interfaceRegistry)
 
-	clientCtx, err := client.GetClientQueryContext(cmd)
-
-	logger.Info("Starting explorer API server...", "step_num", "3")
-	if err != nil {
-		return err
-	}
+	clientCtx := client.Context{}.WithInterfaceRegistry(interfaceRegistry)
 
 	rpcAddr := cfg.RPC.ListenAddress
 
 	c, err := rpchttp.New(rpcAddr, "/websocket")
+	c.Logger = logger
+
 	logger.Info("Starting explorer API server...", "step_num", "4")
 	if err != nil {
 		panic(err)
@@ -47,14 +45,12 @@ func StartExplorerApi(cfg *cfg.Config, logger log.Logger) error {
 
 	logger.Info("Starting explorer API server...", "step_num", "5")
 
-	queryRouter := baseapp.NewGRPCQueryRouter()
-
 	logger.Info("Starting explorer API server...", "step_num", "6")
 
 	tmservice.RegisterTendermintService(
 		clientCtx,
 		queryRouter,
-		types.NewInterfaceRegistry(),
+		interfaceRegistry,
 		tempQueryFn,
 	)
 
@@ -63,27 +59,24 @@ func StartExplorerApi(cfg *cfg.Config, logger log.Logger) error {
 	apiServer := api.New(clientCtx, logger)
 
 	logger.Info("Starting explorer API server...", "step_num", "8")
-	tmservice.RegisterGRPCGatewayRoutes(clientCtx, apiServer.GRPCGatewayRouter)
+	tmservice.RegisterGRPCGatewayRoutes(apiServer.ClientCtx, apiServer.GRPCGatewayRouter)
 
 	logger.Info("Starting explorer API server...", "step_num", "9")
 
 	errCh := make(chan error)
 
-	apiServerCfg := svrcfg.DefaultConfig()
-
 	logger.Info("Starting explorer API server...", "step_num", "10")
 
+	apiServerCfg := svrcfg.DefaultConfig()
 	apiServerCfg.API.Enable = true
-	apiServerCfg.API.Swagger = true
-	apiServerCfg.API.Address = "0.0.0.0:1317"
+	apiServerCfg.API.EnableUnsafeCORS = true
+	apiServerCfg.API.Address = "tcp://0.0.0.0:1317"
+
+	logger.Info("Starting explorer API server...", "step_num", "11")
 
 	go func() {
-		logger.Info("Starting API server...")
-		if err := apiServer.Start(svrcfg.Config{
-			API: svrcfg.APIConfig{
-				Enable: true,
-			},
-		}); err != nil {
+		logger.Info("Starting API server...", "config", *apiServerCfg)
+		if err := apiServer.Start(*apiServerCfg); err != nil {
 			errCh <- err
 		}
 	}()
@@ -94,6 +87,8 @@ func StartExplorerApi(cfg *cfg.Config, logger log.Logger) error {
 
 	case <-time.After(svrtypes.ServerStartTime): // assume server started successfully
 	}
+
+	logger.Info("Explorer API server started successfully", "routes", apiServer.Router, "interface_registry", interfaceRegistry, "query_router", queryRouter)
 
 	return nil
 }
