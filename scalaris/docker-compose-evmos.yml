@@ -119,6 +119,7 @@ services:
     image: "evmos/node"
     ports:
       - "8145-8146:8545-8546"
+      - "11317:1317"
     volumes:
       - ${PATH_EVMOS}/node0/evmosd:/evmos:Z
     command:
@@ -198,7 +199,6 @@ services:
       - ${PATH_ABCI}/abci_mock_1:/mock
     ports:
       - 21657:26657
-      - 11317:1317
     networks:
       evmos-network:
         ipv4_address: 10.0.20.25
