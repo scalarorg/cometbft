@@ -167,18 +167,18 @@ services:
       evmos-network:
         ipv4_address: 10.0.20.24
   
-  evmos_proxy:
-    image: nginx:1.27-bookworm
-    container_name: evmos_proxy
-    volumes:
-      - ./evmos.conf:/etc/nginx/conf.d/default.conf
-    ports:
-      - 1317:80
-    depends_on: 
-      - evmos1
-    networks:
-      evmos-network:
-        ipv4_address: 10.0.20.99
+  # evmos_proxy:
+  #   image: nginx:1.27-bookworm
+  #   container_name: evmos_proxy
+  #   volumes:
+  #     - ./evmos.conf:/etc/nginx/conf.d/default.conf
+  #   ports:
+  #     - 1317:80
+  #   depends_on: 
+  #     - evmos1
+  #   networks:
+  #     evmos-network:
+  #       ipv4_address: 10.0.20.99
 
   evmos-abci1:
     container_name: evmos-abci1
